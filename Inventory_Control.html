@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<title>PO & Inventory Control System</title>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+<style>
+/* ===== RESET & GLOBAL ===== */
+* { box-sizing: border-box; margin:0; padding:0; font-family:"Segoe UI",sans-serif; }
+body { background: linear-gradient(135deg,#e9efff,#f8fbff); padding:20px; }
+.container { max-width: 1200px; margin:auto; }
+
+/* ===== NAV MENU ===== */
+nav { background:#224abe; color:white; padding:15px; border-radius:10px; margin-bottom:25px; display:flex; gap:20px; justify-content:center; flex-wrap:wrap; }
+nav button { background:transparent; border:none; color:white; font-size:16px; cursor:pointer; padding:10px 15px; border-radius:8px; transition: background .3s; }
+nav button:hover, nav button.active { background:#1a68d1; }
+
+/* ===== HEADER ===== */
+.header { text-align:center; font-size:28px; font-weight:700; margin-bottom:20px; }
+
+/* ===== CARD ===== */
+.card { background:white; padding:20px; border-radius:15px; margin-bottom:25px; box-shadow:0 10px 25px rgba(0,0,0,.08); transition: transform .3s; }
+.card:hover { transform: translateY(-5px); }
+h3 { margin-bottom:15px; }
+
+/* ===== SUMMARY ===== */
+.summary { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:15px; }
+.summary div { background:#f4f6ff; padding:20px; border-radius:12px; text-align:center; font-weight:bold; font-size:15px; position: relative; }
+.summary div i { font-size:24px; position:absolute; top:15px; right:15px; color:#2c7be5; }
+.summary span { display:block; font-size:22px; margin-top:5px; color:#2c7be5; }
+
+/* ===== FORM ===== */
+.grid { display:grid; grid-template-columns: repeat(auto-fit,minmax(180px,1fr)); gap:15px; align-items: center; }
+input, select { padding:12px; border-radius:10px; border:1px solid #ccc; font-size:14px; }
+input:focus, select:focus { border-color:#2c7be5; outline:none; box-shadow:0 0 8px rgba(44,123,229,.3); }
+button { padding:12px 16px; border-radius:10px; border:none; cursor:pointer; background:#2c7be5; color:white; font-weight:600; transition: background .3s, transform .2s; }
+button:hover { background:#1a68d1; transform: translateY(-2px);}
+.btn-secondary { background:#6c757d; }
+.btn-secondary:hover { background:#565e64; }
+.btn-edit { background:#ffc107; color:black; }
+.btn-edit:hover { background:#e0a800; }
+.btn-delete { background:#ff4d4d; }
+.btn-delete:hover { background:#d93636; }
+
+/* ===== TABLE ===== */
+table { width:100%; border-collapse:collapse; margin-top:15px; }
+th, td { padding:12px; text-align:center; }
+th { background:#f2f6ff; color:#2c7be5; font-weight:600; }
+tbody tr:nth-child(even) { background:#f9faff; }
+tbody tr:hover { background:#e1f0ff; }
+.highlight { background:#d4edda !important; font-weight:bold; color:#155724; }
+.low-stock { background:#fff3cd !important; color:#856404; font-weight:bold; }
+
+/* ===== SEARCH ===== */
+input[type="text"] { width:100%; padding:12px 15px; border-radius:10px; border:1px solid #ccc; margin-bottom:15px; font-size:14px; }
+
+/* ===== HIDDEN PAGES ===== */
+.page { display:none; }
+.page.active { display:block; }
+
+/* ===== MODAL ===== */
+#restockModal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); justify-content:center; align-items:center; }
+#restockModal .modal-content { background:white; padding:25px; border-radius:12px; width:320px; text-align:center; }
+#restockModal button { margin:10px; }
+</style>
+</head>
+<body>
+
+<div class="container">
+
+    <!-- NAV MENU -->
+    <nav>
+        <button class="menu-btn active" data-page="dashboard"><i class="fa-solid fa-chart-line"></i> Dashboard</button>
+        <button class="menu-btn" data-page="po"><i class="fa-solid fa-receipt"></i> Purchase Order</button>
+        <button class="menu-btn" data-page="inventory"><i class="fa-solid fa-boxes"></i> Inventory</button>
+    </nav>
+
+    <!-- DASHBOARD -->
+    <div id="dashboard" class="page active">
+        <div class="header"><i class="fa-solid fa-chart-line"></i> Dashboard</div>
+        <div class="card summary">
+            <div><i class="fa-solid fa-list"></i> Total PO<span id="dashTotalPO">0</span></div>
+            <div><i class="fa-solid fa-boxes"></i> Total Qty PO<span id="dashTotalQty">0</span></div>
+            <div><i class="fa-solid fa-dollar-sign"></i> Grand Total PO<span id="dashGrandTotal">Rp 0</span></div>
+        </div>
+        <div class="card summary">
+            <div><i class="fa-solid fa-list"></i> Total Item<span id="dashTotalItem">0</span></div>
+            <div><i class="fa-solid fa-layer-group"></i> Total Stok<span id="dashTotalStock">0</span></div>
+            <div><i class="fa-solid fa-dollar-sign"></i> Total Nilai Inventory<span id="dashTotalValue">Rp 0</span></div>
+        </div>
+    </div>
+
+    <!-- PURCHASE ORDER PAGE -->
+    <div id="po" class="page">
+        <div class="header"><i class="fa-solid fa-receipt"></i> Purchase Order</div>
+
+        <!-- PO Form -->
+        <div class="card">
+            <h3 id="poFormTitle">➕ Tambah Purchase Order</h3>
+            <form id="poForm">
+                <div class="grid">
+                    <input id="supplier" placeholder="Supplier" required>
+                    <input id="item" placeholder="Barang" required>
+                    <input id="qty" type="number" placeholder="Qty" required min="1">
+                    <select id="unit">
+                        <option>pcs</option>
+                        <option>box</option>
+                        <option>kg</option>
+                        <option>liter</option>
+                    </select>
+                    <input id="price" type="number" placeholder="Harga" required min="0">
+                    <button type="submit"><i class="fa-solid fa-floppy-disk"></i> Simpan</button>
+                    <button type="button" id="poCancelEdit" class="btn-secondary hidden"><i class="fa-solid fa-xmark"></i> Batal</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- PO Table -->
+        <div class="card">
+            <input type="text" id="searchPO" placeholder="🔍 Cari PO berdasarkan Supplier atau Barang...">
+            <button onclick="window.print()"><i class="fa-solid fa-print"></i> Cetak PDF</button>
+            <table>
+                <thead>
+                    <tr>
+                        <th>No PO</th>
+                        <th>Tanggal</th>
+                        <th>Supplier</th>
+                        <th>Barang</th>
+                        <th>Qty</th>
+                        <th>Satuan</th>
+                        <th>Harga</th>
+                        <th>Total</th>
+                        <th>Aksi</th>
+                    </tr>
+                </thead>
+                <tbody id="poList"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- INVENTORY PAGE -->
+    <div id="inventory" class="page">
+        <div class="header"><i class="fa-solid fa-boxes"></i> Inventory Control</div>
+
+        <!-- Inventory Form -->
+        <div class="card">
+            <h3 id="invFormTitle">➕ Tambah Barang</h3>
+            <form id="itemForm">
+                <div class="grid">
+                    <input id="itemName" placeholder="Nama Barang" required>
+                    <input id="category" placeholder="Kategori" required>
+                    <input id="stock" type="number" placeholder="Stok" required min="0">
+                    <input id="priceInv" type="number" placeholder="Harga per unit" required min="0">
+                    <input id="location" placeholder="Lokasi" required>
+                    <button type="submit"><i class="fa-solid fa-floppy-disk"></i> Simpan</button>
+                    <button type="button" id="invCancelEdit" class="btn-secondary hidden"><i class="fa-solid fa-xmark"></i> Batal</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Inventory Table -->
+        <div class="card">
+            <input type="text" id="searchItem" placeholder="🔍 Cari Barang berdasarkan Nama atau Kategori...">
+            <button onclick="window.print()"><i class="fa-solid fa-print"></i> Cetak PDF</button>
+            <table>
+                <thead>
+                    <tr>
+                        <th>No</th>
+                        <th>Nama Barang</th>
+                        <th>Kategori</th>
+                        <th>Stok</th>
+                        <th>Harga/unit</th>
+                        <th>Lokasi</th>
+                        <th>Total Nilai</th>
+                        <th>Aksi</th>
+                    </tr>
+                </thead>
+                <tbody id="itemList"></tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+
+<!-- MODAL RESTOCK -->
+<div id="restockModal">
+    <div class="modal-content">
+        <p id="restockMsg"></p>
+        <button id="confirmRestock"><i class="fa-solid fa-check"></i> Ya, Restock</button>
+        <button id="cancelRestock" class="btn-secondary"><i class="fa-solid fa-xmark"></i> Batal</button>
+    </div>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    // ===== MENU NAV =====
+    const menuBtns = document.querySelectorAll(".menu-btn");
+    const pages = document.querySelectorAll(".page");
+    menuBtns.forEach(btn=>{
+        btn.addEventListener("click", ()=>{
+            menuBtns.forEach(b=>b.classList.remove("active"));
+            btn.classList.add("active");
+            const pageId = btn.dataset.page;
+            pages.forEach(p=>p.classList.remove("active"));
+            document.getElementById(pageId).classList.add("active");
+        });
+    });
+
+    // ===== PO =====
+    const poForm = document.getElementById("poForm");
+    const poList = document.getElementById("poList");
+    const supplier = document.getElementById("supplier");
+    const item = document.getElementById("item");
+    const qty = document.getElementById("qty");
+    const unit = document.getElementById("unit");
+    const price = document.getElementById("price");
+    const poFormTitle = document.getElementById("poFormTitle");
+    const poCancelEdit = document.getElementById("poCancelEdit");
+    let poData = JSON.parse(localStorage.getItem("po")) || [];
+    let poEditIndex = null;
+
+    function genPO() {
+        const d = new Date();
+        return `PO-${d.toISOString().slice(0,10).replace(/-/g,"")}-${String(poData.length+1).padStart(3,"0")}`;
+    }
+
+    function renderPO(filter="") {
+        poList.innerHTML = "";
+        let maxTotal = 0;
+        poData.forEach(po => { if(po.total > maxTotal) maxTotal = po.total; });
+        poData.forEach((po,i)=>{
+            if(filter && !po.supplier.toLowerCase().includes(filter) && !po.item.toLowerCase().includes(filter)) return;
+            poList.innerHTML += `
+                <tr class="${po.total===maxTotal?'highlight':''}">
+                    <td>${po.no}</td>
+                    <td>${po.date}</td>
+                    <td>${po.supplier}</td>
+                    <td>${po.item}</td>
+                    <td>${po.qty}</td>
+                    <td>${po.unit}</td>
+                    <td>Rp ${Number(po.price).toLocaleString()}</td>
+                    <td><b>Rp ${Number(po.total).toLocaleString()}</b></td>
+                    <td>
+                        <button class="btn-edit" onclick="editPO(${i})"><i class="fa-solid fa-pen"></i></button>
+                        <button class="btn-delete" onclick="deletePO(${i})"><i class="fa-solid fa-trash"></i></button>
+                    </td>
+                </tr>`;
+        });
+        updateDashboard();
+    }
+
+    poForm.addEventListener("submit", e=>{
+        e.preventDefault();
+        const q = Number(qty.value), p = Number(price.value);
+        if(poEditIndex===null){
+            poData.push({
+                no: genPO(),
+                date: new Date().toLocaleDateString("id-ID"),
+                supplier: supplier.value.trim(),
+                item: item.value.trim(),
+                qty: q,
+                unit: unit.value,
+                price: p,
+                total: q*p
+            });
+        } else {
+            poData[poEditIndex] = {
+                ...poData[poEditIndex],
+                supplier: supplier.value.trim(),
+                item: item.value.trim(),
+                qty: q,
+                unit: unit.value,
+                price: p,
+                total: q*p
+            };
+            resetPOForm();
+        }
+        localStorage.setItem("po", JSON.stringify(poData));
+        poForm.reset();
+        renderPO(document.getElementById("searchPO").value.toLowerCase());
+    });
+
+    poCancelEdit.addEventListener("click", resetPOForm);
+    function resetPOForm(){ poEditIndex=null; poForm.reset(); poFormTitle.innerText="➕ Tambah Purchase Order"; poCancelEdit.classList.add("hidden"); }
+    window.editPO = i=>{ const po=poData[i]; poEditIndex=i; supplier.value=po.supplier; item.value=po.item; qty.value=po.qty; unit.value=po.unit; price.value=po.price; poFormTitle.innerText="✏️ Edit Purchase Order"; poCancelEdit.classList.remove("hidden"); }
+    window.deletePO = i=>{ if(confirm("Hapus PO ini?")){ poData.splice(i,1); localStorage.setItem("po",JSON.stringify(poData)); renderPO(document.getElementById("searchPO").value.toLowerCase()); } }
+    document.getElementById("searchPO").addEventListener("input", e=>renderPO(e.target.value.toLowerCase()));
+
+    // ===== INVENTORY =====
+    const itemForm = document.getElementById("itemForm");
+    const itemList = document.getElementById("itemList");
+    const itemName = document.getElementById("itemName");
+    const category = document.getElementById("category");
+    const stock = document.getElementById("stock");
+    const priceInv = document.getElementById("priceInv");
+    const location = document.getElementById("location");
+    const invFormTitle = document.getElementById("invFormTitle");
+    const invCancelEdit = document.getElementById("invCancelEdit");
+    let inventory = JSON.parse(localStorage.getItem("inventory")) || [];
+    let invEditIndex = null;
+
+    function renderInventory(filter="") {
+        itemList.innerHTML = "";
+        inventory.forEach((it,i)=>{
+            if(filter && !it.name.toLowerCase().includes(filter) && !it.category.toLowerCase().includes(filter)) return;
+            const totalValue = it.stock*it.price;
+            itemList.innerHTML += `
+                <tr class="${it.stock<5?'low-stock':''}">
+                    <td>${i+1}</td>
+                    <td>${it.name}</td>
+                    <td>${it.category}</td>
+                    <td>${it.stock}</td>
+                    <td>Rp ${Number(it.price).toLocaleString()}</td>
+                    <td>${it.location}</td>
+                    <td>Rp ${Number(totalValue).toLocaleString()}</td>
+                    <td>
+                        <button class="btn-edit" onclick="editItem(${i})"><i class="fa-solid fa-pen"></i></button>
+                        <button class="btn-delete" onclick="deleteItem(${i})"><i class="fa-solid fa-trash"></i></button>
+                        <button class="btn-secondary" onclick="restockItem(${i})"><i class="fa-solid fa-plus"></i> Restock</button>
+                    </td>
+                </tr>`;
+        });
+        updateDashboard();
+    }
+
+    itemForm.addEventListener("submit", e=>{
+        e.preventDefault();
+        const s = Number(stock.value), p = Number(priceInv.value);
+        if(invEditIndex===null){
+            inventory.push({ name:itemName.value.trim(), category:category.value.trim(), stock:s, price:p, location:location.value.trim() });
+        } else {
+            inventory[invEditIndex] = { name:itemName.value.trim(), category:category.value.trim(), stock:s, price:p, location:location.value.trim() };
+            resetInvForm();
+        }
+        localStorage.setItem("inventory", JSON.stringify(inventory));
+        itemForm.reset();
+        renderInventory(document.getElementById("searchItem").value.toLowerCase());
+    });
+
+    invCancelEdit.addEventListener("click", resetInvForm);
+    function resetInvForm(){ invEditIndex=null; itemForm.reset(); invFormTitle.innerText="➕ Tambah Barang"; invCancelEdit.classList.add("hidden"); }
+    window.editItem = i=>{ const it=inventory[i]; invEditIndex=i; itemName.value=it.name; category.value=it.category; stock.value=it.stock; priceInv.value=it.price; location.value=it.location; invFormTitle.innerText="✏️ Edit Barang"; invCancelEdit.classList.remove("hidden"); }
+    window.deleteItem = i=>{ if(confirm("Hapus barang ini?")){ inventory.splice(i,1); localStorage.setItem("inventory",JSON.stringify(inventory)); renderInventory(document.getElementById("searchItem").value.toLowerCase()); } }
+    document.getElementById("searchItem").addEventListener("input", e=>renderInventory(e.target.value.toLowerCase()));
+
+    // ===== RESTOCK =====
+    let currentRestockIndex=null;
+    const restockModal = document.getElementById("restockModal");
+    const restockMsg = document.getElementById("restockMsg");
+    const confirmRestock = document.getElementById("confirmRestock");
+    const cancelRestock = document.getElementById("cancelRestock");
+
+    window.restockItem = i=>{
+        currentRestockIndex=i;
+        const it=inventory[i];
+        const defaultQty=10;
+        restockMsg.innerHTML = `Apakah Anda yakin ingin restock <b>${it.name}</b> sebanyak <b>${defaultQty} pcs</b>?`;
+        restockModal.style.display="flex";
+    }
+
+    confirmRestock.addEventListener("click", ()=>{
+        const i = currentRestockIndex;
+        const it = inventory[i];
+        const defaultQty=10;
+
+        // Tambah stok inventory
+        it.stock += defaultQty;
+
+        // Tambah PO baru untuk restock
+        const poRestock = {
+            no: genPO(),
+            date: new Date().toLocaleDateString("id-ID"),
+            supplier: "Auto Restock",
+            item: it.name,
+            qty: defaultQty,
+            unit: "pcs",
+            price: it.price,
+            total: defaultQty * it.price
+        };
+        poData.push(poRestock);
+
+        // Simpan
+        localStorage.setItem("inventory", JSON.stringify(inventory));
+        localStorage.setItem("po", JSON.stringify(poData));
+
+        // Render ulang
+        renderInventory(document.getElementById("searchItem").value.toLowerCase());
+        renderPO(document.getElementById("searchPO").value.toLowerCase());
+
+        // Tutup modal
+        restockModal.style.display="none";
+    });
+
+    cancelRestock.addEventListener("click", ()=>{ restockModal.style.display="none"; });
+
+    // ===== DASHBOARD =====
+    function updateDashboard(){
+        document.getElementById("dashTotalPO").innerText = poData.length;
+        document.getElementById("dashTotalQty").innerText = poData.reduce((a,b)=>a+b.qty,0);
+        document.getElementById("dashGrandTotal").innerText = "Rp "+poData.reduce((a,b)=>a+b.total,0).toLocaleString();
+        document.getElementById("dashTotalItem").innerText = inventory.length;
+        document.getElementById("dashTotalStock").innerText = inventory.reduce((a,b)=>a+b.stock,0);
+        document.getElementById("dashTotalValue").innerText = "Rp "+inventory.reduce((a,b)=>a+b.stock*b.price,0).toLocaleString();
+    }
+
+    // ===== INIT RENDER =====
+    renderPO();
+    renderInventory();
+});
+</script>
+
+</body>
+</html>
